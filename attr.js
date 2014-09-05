@@ -148,7 +148,14 @@ define("attr", !! this.getComputedStyle ? ["node"] : ["attr_fix"], function($) {
             "for": "htmlFor",
             "http-equiv": "httpEquiv"
         },
-        prop: function(node, name, value) {
+        //判定用户有没有显式定义某属性
+       hasAttr: document.documentElement.hasAttribute ? function(el, attr){
+            return el.hasAttribute(attr)
+           } : function(el, attr){//IE67
+               var outer = el.outerHTML, part = outer.slice(0, outer.search(/\/?['"]?>(?![^<]*<['"])/));
+			  return new RegExp("\\s" + attr + "\\b", "i").test(part);
+       },
+       prop: function(node, name, value) {
             if($["@bind"] in node) {
                 if(node.nodeType === 1 && !$.isXML(node)) {
                     name = $.propMap[name.toLowerCase()] || name;
@@ -280,11 +287,17 @@ define("attr", !! this.getComputedStyle ? ["node"] : ["attr_fix"], function($) {
         };
     }
     //========================valHooks 的相关修正==========================
+    var roption = /^<option(?:\s+\w+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*\s+value[\s=]/i
     var valHooks = {
-        "option:get": function(node) {
-            var val = node.attributes.value;
-            //黑莓手机4.7下val会返回undefined,但我们依然可用node.value取值
-            return !val || val.specified ? node.value : node.text;
+       "option:get": function(){
+       //在IE11及W3C，如果没有指定value，那么node.value默认为node.text（存在trim作），
+       //但IE9-10则是取innerHTML(没trim操作)
+          if (node.hasAttribute) { 
+             return node.hasAttribute("value") ? node.value : node.text.trim()
+          }
+        //specified并不可靠，因此通过分析outerHTML判定用户有没有显示定义value
+          return roption.test(node.outerHTML) ? node.value : node.text
+ 
         },
         "select:get": function(node, value, getter) {
             var option, options = node.options,
